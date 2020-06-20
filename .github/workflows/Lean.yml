@@ -19,6 +19,9 @@ on:
   
   watch:
     types: [started]
+    
+env:
+  SSH_ACTIONS: true
 
 jobs:
   build:
@@ -65,11 +68,15 @@ jobs:
         cd openwrt
         sed -i '5s/#//' feeds.conf.default
         
+    - name: Clone other packages
+      run: |
+        git clone https://github.com/project-openwrt/luci-app-koolproxyR.git openwrt/package/luci-app-koolproxyR
+        git clone https://github.com/tty228/luci-app-serverchan.git openwrt/package/luci-app-serverchan 
+        
     - name: 更新 & 安装 feeds
       working-directory: ./openwrt
       run: |
         ./scripts/feeds update -a
-        ./scripts/feeds install -a
         ./scripts/feeds install -a
 
     - name: 自定义安装源
@@ -93,6 +100,10 @@ jobs:
         ./scripts/feeds update -a
         ./scripts/feeds install -a
         
+    - name: SSH connection to Actions
+      uses: P3TERX/debugger-action@master
+      if: env.SSH_ACTIONS == 'true' 
+      
     - name: 下载包文件
       working-directory: ./openwrt
       run: |
@@ -105,9 +116,20 @@ jobs:
       run: |
         echo -e "$(nproc) thread build."
         make -j$(nproc) V=s
+        echo "::set-output name=status::success"
 
     - name : 上传固件与目录
       uses: actions/upload-artifact@master
       with:
         name: Lean
         path: openwrt/bin
+    
+    - name: Upload Config
+      uses: actions/upload-artifact@master
+      if: steps.compile.outputs.status == 'success' && env.SSH_ACTIONS == 'true'
+      with:
+        name: OpenWrt_config
+        path: openwrt/.config
+    
+    
+    
